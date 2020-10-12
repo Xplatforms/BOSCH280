@@ -1,0 +1,76 @@
+#ifndef USER_CONFIG_H
+#define USER_CONFIG_H
+
+#define USE_OPTIMIZE_PRINTF
+#define CONFIG_ENABLE_IRAM_MEMORY   1
+
+//#define DEFDEV_ESP01 //ESP-01 & ESP-07
+#define DEFDEV_ESP12
+
+
+
+
+
+
+
+#ifdef DEFDEV_ESP01
+#define gpio_pin_low() gpio_output_set(0, BIT2, BIT2, 0)
+#define gpio_pin_high() gpio_output_set(BIT2, 0, BIT2, 0)
+#define gpio_pin_select() PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2);
+//ESP-01 8Mbit 1MB FLASH_SIZE_8M_MAP_512_512
+#define SPI_FLASH_SIZE_MAP 2
+#elif defined(DEFDEV_ESP12)
+
+#define gpio_pin_low() gpio_output_set(0, BIT12, BIT12, 0)
+#define gpio_pin_high() gpio_output_set(BIT12, 0, BIT12, 0)
+
+#define gpio_pin_select() PIN_FUNC_SELECT(PERIPHS_IO_MUX_MTDI_U, FUNC_GPIO12);
+
+#define gpio_pin2_select() PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2);
+//ESP-12 4MB = 32Mbit
+#define SPI_FLASH_SIZE_MAP 4
+#endif
+
+
+
+#if ((SPI_FLASH_SIZE_MAP == 0) || (SPI_FLASH_SIZE_MAP == 1))
+#error "The flash map is not supported"
+#elif (SPI_FLASH_SIZE_MAP == 2)
+#define SYSTEM_PARTITION_OTA_SIZE							0x6A000
+#define SYSTEM_PARTITION_OTA_2_ADDR							0x81000
+#define SYSTEM_PARTITION_RF_CAL_ADDR						0xfb000
+#define SYSTEM_PARTITION_PHY_DATA_ADDR						0xfc000
+#define SYSTEM_PARTITION_SYSTEM_PARAMETER_ADDR				0xfd000
+#elif (SPI_FLASH_SIZE_MAP == 3)
+#define SYSTEM_PARTITION_OTA_SIZE							0x6A000
+#define SYSTEM_PARTITION_OTA_2_ADDR							0x81000
+#define SYSTEM_PARTITION_RF_CAL_ADDR						0x1fb000
+#define SYSTEM_PARTITION_PHY_DATA_ADDR						0x1fc000
+#define SYSTEM_PARTITION_SYSTEM_PARAMETER_ADDR				0x1fd000
+#elif (SPI_FLASH_SIZE_MAP == 4)
+#define SYSTEM_PARTITION_OTA_SIZE							0x6A000
+#define SYSTEM_PARTITION_OTA_2_ADDR							0x81000
+#define SYSTEM_PARTITION_RF_CAL_ADDR						0x3fb000
+#define SYSTEM_PARTITION_PHY_DATA_ADDR						0x3fc000
+#define SYSTEM_PARTITION_SYSTEM_PARAMETER_ADDR				0x3fd000
+#elif (SPI_FLASH_SIZE_MAP == 5)
+#define SYSTEM_PARTITION_OTA_SIZE							0x6A000
+#define SYSTEM_PARTITION_OTA_2_ADDR							0x101000
+#define SYSTEM_PARTITION_RF_CAL_ADDR						0x1fb000
+#define SYSTEM_PARTITION_PHY_DATA_ADDR						0x1fc000
+#define SYSTEM_PARTITION_SYSTEM_PARAMETER_ADDR				0x1fd000
+#elif (SPI_FLASH_SIZE_MAP == 6)
+#define SYSTEM_PARTITION_OTA_SIZE							0x6A000
+#define SYSTEM_PARTITION_OTA_2_ADDR							0x101000
+#define SYSTEM_PARTITION_RF_CAL_ADDR						0x3fb000
+#define SYSTEM_PARTITION_PHY_DATA_ADDR						0x3fc000
+#define SYSTEM_PARTITION_SYSTEM_PARAMETER_ADDR				0x3fd000
+#else
+#error "The flash map is not supported"
+#endif
+
+
+
+
+#endif
+
