@@ -30,6 +30,12 @@
 #define BME280_TEMP_LSB  0xFB
 #define BME280_TEMP_XLSB 0xFC
 
+
+///FORWARD DECL. DEF is in user_main
+void ICACHE_FLASH_ATTR BITINFO(char * text, uint8 inpins);
+///
+
+
 struct dig_T_struct
 {
     uint16_t T1;
@@ -345,18 +351,31 @@ real64_t ICACHE_FLASH_ATTR bme280_read_temp_double(uint8 i2c_dev_addr)
     return temp_double;
 }
 
+bool ICACHE_FLASH_ATTR bme280_set_mode(uint8 i2c_dev_addr, uint8 mode)
+{
+    uint8 cur = bme280_read_byte_from_reg(i2c_dev_addr, 0xF4);
+    BITINFO("CURMEAS", cur);
 
-bool ICACHE_FLASH_ATTR bme280_enable_weather_station_config(uint8 i2c_dev_addr)
+    cur = cur & 0b11111100; // mask out the bits we care about
+    cur = cur | mode; // Set the magic bits
+
+    BITINFO("NEWMEAS", cur);
+
+    bme280_write_byte_to_reg(i2c_dev_addr, 0xF4, cur);
+}
+
+
+bool ICACHE_FLASH_ATTR bme280_set_weather_station_config(uint8 i2c_dev_addr)
 {
     // weather monitoring. sens mode forced, oversampling 1,1,1, filter off
     // 0xF4 -> 8...0 osrs_t 111. osrs_p 111, mode 11
-    // -> 001 001 10
-    uint8 ctrl_meas = 0x26;//b00100110;
+    // -> 001 001 01
+    uint8 ctrl_meas = 0x25;//b 001 001 01;
     // 0xF2 ->ctrl_hum 00000 001
     uint8 ctrl_hum = 0x01;
     // 0xF5 -> config
-    // 000 000 00
-    uint8 ctrl_config = 0x00;
+    // 001 011 00 //500ms
+    uint8 ctrl_config = 0x2C;//0x80;
 
     if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF2, ctrl_hum))
     {
@@ -365,16 +384,16 @@ bool ICACHE_FLASH_ATTR bme280_enable_weather_station_config(uint8 i2c_dev_addr)
     }
     else
     {
-        if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF4, ctrl_meas))
+        if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF5, ctrl_config))
         {
-            INFO("Can't write ctrl_meas\r\n");
+            INFO("Can't write ctrl_config\r\n");
             return false;
         }
         else
         {
-            if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF5, ctrl_config))
+            if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF4, ctrl_meas))
             {
-                INFO("Can't write ctrl_config\r\n");
+                INFO("Can't write ctrl_meas\r\n");
                 return false;
             }
         }
@@ -383,6 +402,7 @@ bool ICACHE_FLASH_ATTR bme280_enable_weather_station_config(uint8 i2c_dev_addr)
     return true;
 }
 
+/*
 bool ICACHE_FLASH_ATTR bme280_enable_weather_monitor_config(uint8 i2c_dev_addr)
 {
     // weather monitoring. sens mode forced, oversampling 1,1,1, filter off
@@ -419,4 +439,4 @@ bool ICACHE_FLASH_ATTR bme280_enable_weather_monitor_config(uint8 i2c_dev_addr)
 
     return true;
 }
-
+*/
