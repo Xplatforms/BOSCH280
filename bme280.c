@@ -33,6 +33,8 @@
 
 ///FORWARD DECL. DEF is in user_main
 void ICACHE_FLASH_ATTR BITINFO(char * text, uint8 inpins);
+void ICACHE_FLASH_ATTR BITINFOu16(char * text, uint16 inpins);
+void ICACHE_FLASH_ATTR BITINFOu32(char * text, uint32 inpins);
 ///
 
 
@@ -43,18 +45,50 @@ struct dig_T_struct
     sint16_t T3;
 };
 
+struct dig_P_struct
+{
+    uint16_t P1;
+    sint16_t P2;
+    sint16_t P3;
+    sint16_t P4;
+    sint16_t P5;
+    sint16_t P6;
+    sint16_t P7;
+    sint16_t P8;
+    sint16_t P9;
+};
+
+struct dig_H_struct
+{
+    uint8_t  H1;
+    sint16_t H2;
+    uint8_t  H3;
+    sint16_t H4;
+    sint16_t H5;
+    sint8_t  H6;
+};
+
 union dig_T_union
 {
     uint8 data[6];
     struct dig_T_struct dig;
 };
 
-union dig_T_union callibration_temp_data;
+union dig_P_union
+{
+    uint8 data[18];
+    struct dig_P_struct dig;
+};
+
+union  dig_T_union   callibration_temp_data;
+union  dig_P_union   callibration_pres_data;
+struct dig_H_struct  callibration_humm_data;
 
 // Returns temperature in DegC, resolution is 0.01 DegC. Output value of “5123” equals 51.23 DegC.
 // t_fine carries fine temperature as global value
 BME280_S32_t t_fine;
-BME280_S32_t BME280_compensate_T_int32(uint16_t dig_T1, int16_t dig_T2, int16_t dig_T3, BME280_S32_t adc_T)
+
+BME280_S32_t ICACHE_FLASH_ATTR BME280_compensate_T_int32(uint16_t dig_T1, int16_t dig_T2, int16_t dig_T3, BME280_S32_t adc_T)
 {
     BME280_S32_t var1, var2, T;
     var1  = ((((adc_T>>3) -((BME280_S32_t)dig_T1<<1))) * ((BME280_S32_t)dig_T2)) >> 11;
@@ -64,7 +98,7 @@ BME280_S32_t BME280_compensate_T_int32(uint16_t dig_T1, int16_t dig_T2, int16_t 
     return T;
 }
 
-real64_t BME280_compensate_T_double(uint16_t dig_T1, int16_t dig_T2, int16_t dig_T3, BME280_S32_t adc_T)
+real64_t ICACHE_FLASH_ATTR BME280_compensate_T_double(uint16_t dig_T1, int16_t dig_T2, int16_t dig_T3, BME280_S32_t adc_T)
 {
     real64_t var1, var2, T;
 
@@ -76,18 +110,18 @@ real64_t BME280_compensate_T_double(uint16_t dig_T1, int16_t dig_T2, int16_t dig
     return T;
 }
 
-/*
+
 // Returns pressure in Pa as unsigned 32 bit integer in Q24.8 format (24 integer bits and 8 fractional bits).
 // Output value of “24674867” represents 24674867/256 = 96386.2 Pa = 963.862 hPa
-BME280_U32_t BME280_compensate_P_int64(BME280_S32_t adc_P)
+BME280_U32_t ICACHE_FLASH_ATTR BME280_compensate_P_int64(union dig_P_union * digs, BME280_S32_t adc_P)
 {
     BME280_S64_t var1, var2, p;
     var1 = ((BME280_S64_t)t_fine) -128000;
-    var2 = var1 * var1 * (BME280_S64_t)dig_P6;
-    var2 = var2 + ((var1*(BME280_S64_t)dig_P5)<<17);
-    var2 = var2 + (((BME280_S64_t)dig_P4)<<35);
-    var1 = ((var1 * var1 * (BME280_S64_t)dig_P3)>>8) + ((var1 * (BME280_S64_t)dig_P2)<<12);
-    var1 = (((((BME280_S64_t)1)<<47)+var1))*((BME280_S64_t)dig_P1)>>33;
+    var2 = var1 * var1 * (BME280_S64_t)digs->dig.P6;
+    var2 = var2 + ((var1*(BME280_S64_t)digs->dig.P5)<<17);
+    var2 = var2 + (((BME280_S64_t)digs->dig.P4)<<35);
+    var1 = ((var1 * var1 * (BME280_S64_t)digs->dig.P3)>>8) + ((var1 * (BME280_S64_t)digs->dig.P2)<<12);
+    var1 = (((((BME280_S64_t)1)<<47)+var1))*((BME280_S64_t)digs->dig.P1)>>33;
     if(var1 == 0)
     {
         return 0;
@@ -95,14 +129,69 @@ BME280_U32_t BME280_compensate_P_int64(BME280_S32_t adc_P)
     }
     p = 1048576-adc_P;
     p = (((p<<31)-var2)*3125)/var1;
-    var1 = (((BME280_S64_t)dig_P9) * (p>>13) * (p>>13)) >> 25;
-    var2 =(((BME280_S64_t)dig_P8) * p) >> 19;
-    p = ((p + var1 + var2) >> 8) + (((BME280_S64_t)dig_P7)<<4);
+    var1 = (((BME280_S64_t)digs->dig.P9) * (p>>13) * (p>>13)) >> 25;
+    var2 =(((BME280_S64_t)digs->dig.P8) * p) >> 19;
+    p = ((p + var1 + var2) >> 8) + (((BME280_S64_t)digs->dig.P7)<<4);
     return (BME280_U32_t)p;
 }
-*/
-// Returns humidity in %RH as unsigned 32 bit integer in Q22.10 format (22 integer and 10 fractional bits).// Output value of “47445” represents 47445/1024 = 46.333 %RHBME280_U32_tbme280_compensate_H_int32(BME280_S32_tadc_H){BME280_S32_tv_x1_u32r;v_x1_u32r = (t_fine –((BME280_S32_t)76800));
 
+real64_t ICACHE_FLASH_ATTR BME280_compensate_P_double(union dig_P_union * digs, BME280_S32_t adc_P)
+{
+    real64_t var1, var2, p;
+    var1 = ((real64_t)t_fine/2.0) - 64000.0;
+    var2 = var1 * var1 * ((real64_t)digs->dig.P6) / 32768.0;
+    var2 = var2 + var1 * ((real64_t)digs->dig.P5) * 2.0;
+    var2 = (var2/4.0)+(((real64_t)digs->dig.P4) * 65536.0);
+    var1 = (((real64_t)digs->dig.P3) * var1 * var1 / 524288.0 + ((double)digs->dig.P2) * var1) / 524288.0;
+    var1 = (1.0 + var1 / 32768.0)*((real64_t)digs->dig.P1);
+    if (var1 == 0.0) {
+        return 0.0; // avoid exception caused by division by zero
+    }
+    p = 1048576.0 - (real64_t)adc_P;
+    p = (p - (var2 / 4096.0)) * 6250.0 / var1;
+    var1 = ((real64_t)digs->dig.P9) * p * p / 2147483648.0;
+    var2 = p * ((real64_t)digs->dig.P8) / 32768.0;
+    p = p + (var1 + var2 + ((real64_t)digs->dig.P7)) / 16.0;
+    return p;
+}
+
+// Returns humidity in %RH as unsigned 32 bit integer in Q22.10 format (22 integer and 10 fractional bits).
+// Output value of “47445” represents 47445/1024 = 46.333 %RH
+BME280_U32_t ICACHE_FLASH_ATTR bme280_compensate_H_int32(struct dig_H_struct * digs, BME280_S32_t adc_H)
+{
+    BME280_S32_t v_x1_u32r;
+    v_x1_u32r = (t_fine -((BME280_S32_t)76800));
+    v_x1_u32r = (((((adc_H << 14) -(((BME280_S32_t)digs->H4) << 20) -(((BME280_S32_t)digs->H5) * v_x1_u32r))
+                   + ((BME280_S32_t)16384)) >> 15) * (((((((v_x1_u32r * ((BME280_S32_t)digs->H6)) >> 10)
+                   * (((v_x1_u32r * ((BME280_S32_t)digs->H3)) >> 11)
+                   + ((BME280_S32_t)32768))) >> 10) + ((BME280_S32_t)2097152))
+                   * ((BME280_S32_t)digs->H2) + 8192) >> 14));
+    v_x1_u32r = (v_x1_u32r -(((((v_x1_u32r >> 15) * (v_x1_u32r >> 15)) >> 7) * ((BME280_S32_t)digs->H1)) >> 4));
+    v_x1_u32r = (v_x1_u32r < 0 ? 0 : v_x1_u32r);
+    v_x1_u32r = (v_x1_u32r > 419430400? 419430400: v_x1_u32r);
+    return (BME280_U32_t)(v_x1_u32r>>12);
+}
+
+// Returns humidity in %rH as as double. Output value of “46.332” represents 46.332 %rH
+real64_t ICACHE_FLASH_ATTR BME280_compensate_H_double(struct dig_H_struct * digs, BME280_S32_t adc_H)
+{
+ real64_t var_H;
+
+  var_H = (((real64_t)t_fine) - 76800.0);
+  var_H = (adc_H - (((real64_t)digs->H4) * 64.0 + ((real64_t)digs->H5) / 16384.0 * var_H)) *
+          (((real64_t)digs->H2) / 65536.0 * (1.0 + ((real64_t)digs->H6) / 67108864.0 * var_H *
+          (1.0 + ((real64_t)digs->H3) / 67108864.0 * var_H)));
+  var_H = var_H * (1.0 - ((real64_t)digs->H1) * var_H / 524288.0);
+  if (var_H > 100.0)
+  {
+    var_H = 100.0;
+  }
+  else if (var_H < 0.0)
+  {
+    var_H = 0.0;
+  }
+  return var_H;
+}
 
 //print_bitmask_uint((uint8)(BME280_I2C_ADDR << 1)); // print addr <- WRITE
 //print_bitmask_uint((uint8)(0x76 << 1) | 1); // print addr <- READ
@@ -288,7 +377,7 @@ bool ICACHE_FLASH_ATTR bme280_soft_reset(uint8 i2c_dev_addr)
 bool ICACHE_FLASH_ATTR bme280_read_calibration_data(uint8 i2c_dev_addr)
 {
   uint8 * calib00 = NULL;
-  bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0x88, 25, &calib00);
+  bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0x88, 26, &calib00);
   if(!read)
   {
       INFO("CAN't read callibration data from 0x88..0xA1\r\n");
@@ -299,16 +388,133 @@ bool ICACHE_FLASH_ATTR bme280_read_calibration_data(uint8 i2c_dev_addr)
   read = bme280_read_bytes_from_reg(i2c_dev_addr, 0xE1, 15, &calib26);
   if(!read)
   {
-      INFO("CAN't read callibration data from 0x88..0xA1\r\n");
+      INFO("CAN't read callibration data from 0xE1..0xE6\r\n");
       return false;
   }
 
   os_memcpy((void *)callibration_temp_data.data, calib00, 6);
+  os_memcpy((void *)callibration_pres_data.data, &calib00[6], 18);
+
+  callibration_humm_data.H1 = calib00[25];//bme280_read_byte_from_reg(i2c_dev_addr, 0xA1);                     //A1
+  BITINFOu16("H1 -> ", callibration_humm_data.H1);
+  BITINFO("calib26[0] ", calib26[0]);
+  BITINFO("calib26[1] ", calib26[1]);
+  BITINFO("calib26[2] ", calib26[2]);
+  //os_memcpy((void*)&callibration_humm_data.data[1], calib26, 2);   //E1+E2   = H2
+  // [     E2          E1     ]
+  // [ 0000 0000   0000 0000  ]
+  // [ calib26[1]  calib26[0] ]
+  callibration_humm_data.H2 = (uint16_t)calib26[1] << 8;
+  callibration_humm_data.H2 |= calib26[0];
+
+  BITINFOu16("H2 -> ", callibration_humm_data.H2);
+
+  callibration_humm_data.H3 = calib26[2];                      //E3 = H3
+  BITINFOu16("H3 -> ", callibration_humm_data.H3);
+
+  callibration_humm_data.H4 = (uint16_t)calib26[3] << 4;       //E4 =    H4[0000 ->0000 0000<- 0000]
+  callibration_humm_data.H4 |= calib26[4] & 0b00001111;        //E5[0:3] H4[0000   0000 0000 ->0000<-]
+
+  BITINFOu16("H4 -> ", callibration_humm_data.H4);
+
+  callibration_humm_data.H5 = calib26[4] >> 4;                 //E5[7:4] H5[0000   0000 0000 ->0000<-]
+  callibration_humm_data.H5 |= (uint16_t)calib26[5] << 4;      //E6      H5[0000 ->0000 0000<- 0000]
+
+  BITINFOu16("H5 -> ", callibration_humm_data.H5);
+
+  callibration_humm_data.H6 = calib26[6];                      //E7
+
+  BITINFOu16("H6 -> ", callibration_humm_data.H6);
 
   os_free(calib00);
   os_free(calib26);
 
   return true;
+}
+
+real64_t ICACHE_FLASH_ATTR bme280_read_humm_double(uint8 i2c_dev_addr)
+{
+    uint8 * temp_data = NULL;
+    bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0xFD, 2, &temp_data);
+    if(!read)
+    {
+        INFO("CAN't read bme280_read_temp_longint\r\n");
+        return 0;
+    }
+
+    uint32_t adc_h  = 0;
+    adc_h = temp_data[1];
+    adc_h |= (uint32_t)temp_data[0] << 8;
+
+    os_free(temp_data);
+
+    struct dig_H_struct h = callibration_humm_data;
+    real64_t humm = BME280_compensate_H_double(&h, adc_h);
+    return humm;
+}
+
+BME280_S32_t ICACHE_FLASH_ATTR bme280_read_humm_longint(uint8 i2c_dev_addr)
+{
+    uint8 * temp_data = NULL;
+    bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0xFD, 2, &temp_data);
+    if(!read)
+    {
+        INFO("CAN't read bme280_read_temp_longint\r\n");
+        return 0;
+    }
+
+    BME280_S32_t adc_h  = 0;
+    adc_h = temp_data[1];
+    adc_h |= (uint32_t)temp_data[0] << 8;
+
+    os_free(temp_data);
+
+    struct dig_H_struct h = callibration_humm_data;
+    BME280_U32_t humm = bme280_compensate_H_int32(&h, adc_h);
+    return humm;
+}
+
+BME280_S32_t ICACHE_FLASH_ATTR bme280_read_pres_longint(uint8 i2c_dev_addr)
+{
+    uint8 * temp_data = NULL;
+    bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0xF7, 3, &temp_data);
+    if(!read)
+    {
+        INFO("CAN't read bme280_read_temp_longint\r\n");
+        return 0;
+    }
+
+    uint32_t adc_p  = 0;
+    adc_p =  (uint32_t)temp_data[2] >> 4;
+    adc_p |= (uint32_t)temp_data[1] << 4;
+    adc_p |= (uint32_t)temp_data[0] << 12;
+
+    os_free(temp_data);
+
+    BME280_S32_t pres = BME280_compensate_P_int64(&callibration_pres_data, adc_p);
+    return pres;
+}
+
+real64_t ICACHE_FLASH_ATTR bme280_read_pres_double(uint8 i2c_dev_addr)
+{
+    uint8 * temp_data = NULL;
+    bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0xF7, 3, &temp_data);
+    if(!read)
+    {
+        INFO("CAN't read bme280_read_temp_longint\r\n");
+        return 0;
+    }
+
+    uint32_t adc_p  = 0;
+    adc_p =  (uint32_t)temp_data[2] >> 4;
+    adc_p |= (uint32_t)temp_data[1] << 4;
+    adc_p |= (uint32_t)temp_data[0] << 12;
+
+    os_free(temp_data);
+
+    real64_t pres = BME280_compensate_P_double(&callibration_pres_data, adc_p);
+    if(pres == 0.0)return 0.0;
+    return pres/100.0;
 }
 
 BME280_S32_t ICACHE_FLASH_ATTR bme280_read_temp_longint(uint8 i2c_dev_addr)
@@ -326,8 +532,9 @@ BME280_S32_t ICACHE_FLASH_ATTR bme280_read_temp_longint(uint8 i2c_dev_addr)
     adc_t |= (uint32_t)temp_data[1] << 4;
     adc_t |= (uint32_t)temp_data[0] << 12;
 
-    BME280_S32_t temp = BME280_compensate_T_int32(callibration_temp_data.dig.T1, callibration_temp_data.dig.T2, callibration_temp_data.dig.T3, adc_t);
     os_free(temp_data);
+
+    BME280_S32_t temp = BME280_compensate_T_int32(callibration_temp_data.dig.T1, callibration_temp_data.dig.T2, callibration_temp_data.dig.T3, adc_t);
     return temp;
 }
 
@@ -375,7 +582,7 @@ bool ICACHE_FLASH_ATTR bme280_set_weather_station_config(uint8 i2c_dev_addr)
     uint8 ctrl_hum = 0x01;
     // 0xF5 -> config
     // 001 011 00 //500ms
-    uint8 ctrl_config = 0x2C;//0x80;
+    uint8 ctrl_config = 0x00;//0x80;
 
     if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF2, ctrl_hum))
     {
