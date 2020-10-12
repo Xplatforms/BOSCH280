@@ -86,6 +86,7 @@ BOSCH280_S32_t ICACHE_FLASH_ATTR BOSCH280_read_pres_longint(struct BOSCH280_devi
 BOSCH280_S32_t ICACHE_FLASH_ATTR BOSCH280_read_humm_longint(struct BOSCH280_device_struct *);
 
 bool ICACHE_FLASH_ATTR BOSCH280_set_weather_station_config(struct BOSCH280_device_struct *);
+bool ICACHE_FLASH_ATTR BOSCH280_set_indoor_navigation_config(struct BOSCH280_device_struct *);
 
 
 

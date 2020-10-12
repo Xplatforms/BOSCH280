@@ -614,6 +614,43 @@ bool ICACHE_FLASH_ATTR BOSCH280_set_mode(struct BOSCH280_device_struct * dev, ui
     BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF4, cur);
 }
 
+bool ICACHE_FLASH_ATTR BOSCH280_set_indoor_navigation_config(struct BOSCH280_device_struct * dev)
+{
+    // weather monitoring. sens mode forced, oversampling 1,1,1, filter off
+    // 0xF4 -> 8...0 osrs_t 111. osrs_p 111, mode 11
+    // -> 001 001 01
+    uint8 ctrl_meas = 0x27;//b 001 001 01;
+    // 0xF2 ->ctrl_hum 000 00 001
+    uint8 ctrl_hum = 0x0;
+    // 0xF5 -> config
+    // 001 011 00 //500ms
+    uint8 ctrl_config = 0x00;//0x80;
+
+    if(dev->chip_id == 0x60)
+    {
+        if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF2, ctrl_hum))
+        {
+            INFO("Can't write ctrl_hum\r\n");
+            return false;
+        }
+    }
+
+    if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF5, ctrl_config))
+    {
+        INFO("Can't write ctrl_config\r\n");
+        return false;
+    }
+    else
+    {
+        if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF4, ctrl_meas))
+        {
+            INFO("Can't write ctrl_meas\r\n");
+            return false;
+        }
+    }
+
+    return true;
+}
 
 bool ICACHE_FLASH_ATTR BOSCH280_set_weather_station_config(struct BOSCH280_device_struct * dev)
 {
@@ -649,7 +686,6 @@ bool ICACHE_FLASH_ATTR BOSCH280_set_weather_station_config(struct BOSCH280_devic
             return false;
         }
     }
-
 
     return true;
 }
