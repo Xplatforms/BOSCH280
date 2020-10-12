@@ -2,6 +2,7 @@
 #include <driver/i2c_master.h>
 
 #include <osapi.h>
+#include <mem.h>
 
 #define GLOBAL_DEBUG_ON
 
@@ -20,13 +21,35 @@
 #endif
 #endif
 
-#define BME280_CHIP_ID_REG 0xD0
-#define BME280_SOFT_RST_REG 0xE0
-#define BME280_SOFT_RST_BYTE 0xB6
+#define BME280_CHIP_ID_REG      0xD0
+#define BME280_CONF_REG         0xF4
+#define BME280_SOFT_RST_REG     0xE0
+#define BME280_SOFT_RST_BYTE    0xB6
 
 #define BME280_TEMP_MSB  0xFA
 #define BME280_TEMP_LSB  0xFB
 #define BME280_TEMP_XLSB 0xFC
+
+
+///FORWARD DECL. DEF is in user_main
+void ICACHE_FLASH_ATTR BITINFO(char * text, uint8 inpins);
+///
+
+
+struct dig_T_struct
+{
+    uint16_t T1;
+    sint16_t T2;
+    sint16_t T3;
+};
+
+union dig_T_union
+{
+    uint8 data[6];
+    struct dig_T_struct dig;
+};
+
+union dig_T_union callibration_temp_data;
 
 // Returns temperature in DegC, resolution is 0.01 DegC. Output value of “5123” equals 51.23 DegC.
 // t_fine carries fine temperature as global value
@@ -38,6 +61,18 @@ BME280_S32_t BME280_compensate_T_int32(uint16_t dig_T1, int16_t dig_T2, int16_t 
     var2  =(((((adc_T>>4) -((BME280_S32_t)dig_T1)) * ((adc_T>>4) -((BME280_S32_t)dig_T1))) >> 12) * ((BME280_S32_t)dig_T3)) >> 14;
     t_fine = var1 + var2;
     T  = (t_fine * 5 + 128) >> 8;
+    return T;
+}
+
+real64_t BME280_compensate_T_double(uint16_t dig_T1, int16_t dig_T2, int16_t dig_T3, BME280_S32_t adc_T)
+{
+    real64_t var1, var2, T;
+
+    var1 = (((real64_t)adc_T)/16384.0 - ((real64_t)dig_T1)/1024.0) * ((real64_t)dig_T2);
+    var2 = ((((real64_t)adc_T)/131072.0 - ((real64_t)dig_T1)/8192.0) *
+            (((real64_t)adc_T)/131072.0 - ((real64_t) dig_T1)/8192.0)) * ((real64_t)dig_T3);
+    t_fine = (BME280_S32_t)(var1 + var2);
+    T = (var1 + var2) / 5120.0;
     return T;
 }
 
@@ -84,6 +119,117 @@ bool ICACHE_FLASH_ATTR bme280_select_i2c_dev(uint8 i2c_dev_addr)
     return true;
 }
 
+bool ICACHE_FLASH_ATTR bme280_readNextBytes(uint8 i2c_dev_addr, uint8 *data, uint16 len)
+{
+    uint8 loop;
+    // signal i2c start
+    i2c_master_start();
+    // write i2c address & direction
+    i2c_master_writeByte((uint8)((i2c_dev_addr << 1) | 1));
+    if (!i2c_master_checkAck()) {
+        INFO("i2c at24c_readNextBytes checkAck error \r\n");
+        i2c_master_stop();
+        return false;
+    }
+
+    // read bytes
+    for (loop = 0; loop < len; loop++) {
+        data[loop] = i2c_master_readByte();
+        // send ack (except after last byte, then we send nack)
+        if (loop < (len - 1)) i2c_master_send_ack(); else i2c_master_send_nack();
+    }
+
+    // signal i2c stop
+    i2c_master_stop();
+
+    return true;
+}
+
+bool ICACHE_FLASH_ATTR bme280_write_byte_to_reg(uint8 i2c_dev_addr, uint8 reg, uint8 byte)
+{
+    if(bme280_select_i2c_dev(i2c_dev_addr) == false)
+    {
+        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
+        return false;
+    }
+
+    i2c_master_writeByte((uint8)(reg));
+    if (!i2c_master_checkAck()) {
+        INFO("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
+        i2c_master_stop();
+        return false;
+    }
+
+    i2c_master_writeByte((uint8)(byte));
+    if (!i2c_master_checkAck()) {
+        INFO("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
+        i2c_master_stop();
+        return false;
+    }
+
+    i2c_master_stop();
+    return true;
+}
+
+uint8 ICACHE_FLASH_ATTR bme280_read_byte_from_reg(uint8 i2c_dev_addr, uint8 reg)
+{
+    if(bme280_select_i2c_dev(i2c_dev_addr) == false)
+    {
+        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
+        return 0;
+    }
+
+    i2c_master_writeByte((uint8)(reg));
+    if (!i2c_master_checkAck()) {
+        INFO("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
+        i2c_master_stop();
+        return 0;
+    }
+
+    i2c_master_start();
+    i2c_master_writeByte((uint8)(i2c_dev_addr << 1) | 1);
+    if (!i2c_master_checkAck()) {
+        INFO("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
+        i2c_master_stop();
+        return 0;
+    }
+
+    uint8 ret = i2c_master_readByte();
+    i2c_master_send_nack();
+    i2c_master_stop();
+    return ret;
+}
+
+bool ICACHE_FLASH_ATTR bme280_read_bytes_from_reg(uint8 i2c_dev_addr, uint8 reg_start, uint8 len, uint8 ** buf /*should be not allocated*/)
+{
+  if(bme280_select_i2c_dev(i2c_dev_addr) == false)
+  {
+      INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
+      return false;
+  }
+
+  i2c_master_writeByte(reg_start);
+  if (!i2c_master_checkAck())
+  {
+      INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
+      i2c_master_stop();
+      return false;
+  }
+
+  *buf = (uint8*)os_zalloc(len);
+  bool ret = bme280_readNextBytes(i2c_dev_addr, *buf, len );
+
+  //INFO("BME READ BYTES -> %s\r\n", ret?"true":"false");
+  if(!ret)
+  {
+      os_free(*buf);
+      return false;
+  }
+
+  return true;
+}
+
+
 uint8 ICACHE_FLASH_ATTR bme280_chip_id(uint8 i2c_dev_addr)
 {
     if(bme280_select_i2c_dev(i2c_dev_addr) == false)
@@ -100,8 +246,6 @@ uint8 ICACHE_FLASH_ATTR bme280_chip_id(uint8 i2c_dev_addr)
     }
 
     i2c_master_start();
-
-    //print_bitmask_uint((uint8)(0x76 << 1) | 1);
     i2c_master_writeByte((uint8)(i2c_dev_addr << 1) | 1);
     if (!i2c_master_checkAck()) {
         INFO("%d i2c bme280_chip_id checkAck error \r\n", __LINE__);
@@ -110,10 +254,8 @@ uint8 ICACHE_FLASH_ATTR bme280_chip_id(uint8 i2c_dev_addr)
     }
 
     uint8 ret = i2c_master_readByte();
-
     i2c_master_send_nack();
     i2c_master_stop();
-
     return ret;
 }
 
@@ -143,228 +285,158 @@ bool ICACHE_FLASH_ATTR bme280_soft_reset(uint8 i2c_dev_addr)
     return true;
 }
 
-void ICACHE_FLASH_ATTR print_bitmask_u32(uint32_t inpins)
+bool ICACHE_FLASH_ATTR bme280_read_calibration_data(uint8 i2c_dev_addr)
 {
-    INFO("UINT32_t BITMASK: ");
-    while (inpins) {
-        if (inpins & 1)
-            INFO("1");
-        else
-            INFO("0");
-        inpins >>= 1;
+  uint8 * calib00 = NULL;
+  bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0x88, 25, &calib00);
+  if(!read)
+  {
+      INFO("CAN't read callibration data from 0x88..0xA1\r\n");
+      return false;
+  }
+
+  uint8 * calib26 = NULL;
+  read = bme280_read_bytes_from_reg(i2c_dev_addr, 0xE1, 15, &calib26);
+  if(!read)
+  {
+      INFO("CAN't read callibration data from 0x88..0xA1\r\n");
+      return false;
+  }
+
+  os_memcpy((void *)callibration_temp_data.data, calib00, 6);
+
+  os_free(calib00);
+  os_free(calib26);
+
+  return true;
+}
+
+BME280_S32_t ICACHE_FLASH_ATTR bme280_read_temp_longint(uint8 i2c_dev_addr)
+{
+    uint8 * temp_data = NULL;
+    bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0xFA, 3, &temp_data);
+    if(!read)
+    {
+        INFO("CAN't read bme280_read_temp_longint\r\n");
+        return 0;
     }
-    INFO("\n");
+
+    uint32_t adc_t = 0;
+    adc_t  = (uint32_t)temp_data[2] >> 4;
+    adc_t |= (uint32_t)temp_data[1] << 4;
+    adc_t |= (uint32_t)temp_data[0] << 12;
+
+    BME280_S32_t temp = BME280_compensate_T_int32(callibration_temp_data.dig.T1, callibration_temp_data.dig.T2, callibration_temp_data.dig.T3, adc_t);
+    os_free(temp_data);
+    return temp;
+}
+
+real64_t ICACHE_FLASH_ATTR bme280_read_temp_double(uint8 i2c_dev_addr)
+{
+    uint8 * temp_data = NULL;
+    bool read = bme280_read_bytes_from_reg(i2c_dev_addr, 0xFA, 3, &temp_data);
+    if(!read)
+    {
+        INFO("CAN't read bme280_read_temp_double\r\n");
+        return 0.0;
+    }
+
+    uint32_t adc_t = 0;
+    adc_t  = (uint32_t)temp_data[2] >> 4;
+    adc_t |= (uint32_t)temp_data[1] << 4;
+    adc_t |= (uint32_t)temp_data[0] << 12;
+
+    real64_t temp_double = BME280_compensate_T_double(callibration_temp_data.dig.T1, callibration_temp_data.dig.T2, callibration_temp_data.dig.T3, adc_t);
+    os_free(temp_data);
+    return temp_double;
+}
+
+bool ICACHE_FLASH_ATTR bme280_set_mode(uint8 i2c_dev_addr, uint8 mode)
+{
+    uint8 cur = bme280_read_byte_from_reg(i2c_dev_addr, 0xF4);
+    BITINFO("CURMEAS", cur);
+
+    cur = cur & 0b11111100; // mask out the bits we care about
+    cur = cur | mode; // Set the magic bits
+
+    BITINFO("NEWMEAS", cur);
+
+    bme280_write_byte_to_reg(i2c_dev_addr, 0xF4, cur);
 }
 
 
-bool ICACHE_FLASH_ATTR bme280_readNextBytes(uint8 i2c_dev_addr, uint8 *data, uint16 len) {
+bool ICACHE_FLASH_ATTR bme280_set_weather_station_config(uint8 i2c_dev_addr)
+{
+    // weather monitoring. sens mode forced, oversampling 1,1,1, filter off
+    // 0xF4 -> 8...0 osrs_t 111. osrs_p 111, mode 11
+    // -> 001 001 01
+    uint8 ctrl_meas = 0x25;//b 001 001 01;
+    // 0xF2 ->ctrl_hum 00000 001
+    uint8 ctrl_hum = 0x01;
+    // 0xF5 -> config
+    // 001 011 00 //500ms
+    uint8 ctrl_config = 0x2C;//0x80;
 
-    int loop;
-
-    // signal i2c start
-    i2c_master_start();
-
-    // write i2c address & direction
-    i2c_master_writeByte((uint8)((i2c_dev_addr << 1) | 1));
-    if (!i2c_master_checkAck()) {
-        INFO("i2c at24c_readNextBytes checkAck error \r\n");
-        i2c_master_stop();
+    if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF2, ctrl_hum))
+    {
+        INFO("Can't write ctrl_hum\r\n");
         return false;
     }
-
-    // read bytes
-    for (loop = 0; loop < len; loop++) {
-        data[loop] = i2c_master_readByte();
-        // send ack (except after last byte, then we send nack)
-        if (loop < (len - 1)) i2c_master_send_ack(); else i2c_master_send_nack();
+    else
+    {
+        if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF5, ctrl_config))
+        {
+            INFO("Can't write ctrl_config\r\n");
+            return false;
+        }
+        else
+        {
+            if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF4, ctrl_meas))
+            {
+                INFO("Can't write ctrl_meas\r\n");
+                return false;
+            }
+        }
     }
-
-    // signal i2c stop
-    i2c_master_stop();
 
     return true;
 }
 
-void ICACHE_FLASH_ATTR readCompensationParams(uint8 i2c_dev_addr)
+/*
+bool ICACHE_FLASH_ATTR bme280_enable_weather_monitor_config(uint8 i2c_dev_addr)
 {
-  if(bme280_select_i2c_dev(i2c_dev_addr) == false)
-  {
-      INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
-      return;
-  }
+    // weather monitoring. sens mode forced, oversampling 1,1,1, filter off
+    // 0xF4 -> 8...0 osrs_t 111. osrs_p 111, mode 11
+    // -> 001 001 10
+    uint8 ctrl_meas = 0x26;//b00100110;
+    // 0xF2 ->ctrl_hum 00000 001
+    uint8 ctrl_hum = 0x01;
+    // 0xF5 -> config
+    // 101 010 00
+    uint8 ctrl_config = 0x80;
 
-  i2c_master_writeByte((uint8)(0x88));
-  if (!i2c_master_checkAck()) {
-      INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-      i2c_master_stop();
-      return;
-  }
-  uint8 data[25] = {0};
-  bool ret = bme280_readNextBytes(i2c_dev_addr, data, 24 );
-  INFO("BME READ CALIBR -> %s\r\n", ret?"true":"false");
-  if(!ret)return;
-
-  int i = 0;
-  for(i= 0; i < 24; i++)
-  {
-      INFO("data[%d]: ",i);
-      uint8 tmp =0;
-      tmp |= data[i];
-      while (tmp) {
-          if (tmp & 1)
-              INFO("1");
-          else
-              INFO("0");
-          tmp >>= 1;
-      }
-      INFO("\r\n");
-  }
-}
-
-uint8 ICACHE_FLASH_ATTR bme280_read_byte_from_reg(uint8 i2c_dev_addr, uint8 reg)
-{
-    if(bme280_select_i2c_dev(i2c_dev_addr) == false)
+    if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF2, ctrl_hum))
     {
-        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
-        return 0;
+        INFO("Can't write ctrl_hum\r\n");
+        return false;
     }
-
-    i2c_master_writeByte((uint8)reg);
-    if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-        i2c_master_stop();
-        return 0;
-    }
-
-
-    i2c_master_start();
-
-    i2c_master_writeByte((uint8)(i2c_dev_addr << 1) | 1);
-    if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-        i2c_master_stop();
-        return 0;
-    }
-
-    uint8 ret = i2c_master_readByte();
-    if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-        i2c_master_stop();
-        return 0;
-    }
-
-    i2c_master_send_nack();
-    i2c_master_stop();
-
-    return ret;
-}
-
-void ICACHE_FLASH_ATTR bme280_enable_sens(uint8 i2c_dev_addr)
-{
-
-    uint8_t ctrlMeas;
-    ctrlMeas = bme280_read_byte_from_reg(i2c_dev_addr, (uint8)0xF4);
-
-    INFO("ctrlMeas -> ");
-    uint8 tmp = ctrlMeas;
-    while (tmp) {
-        if (tmp & 1)
-            INFO("1");
-        else
-            INFO("0");
-        tmp >>= 1;
-    }
-    INFO("\r\n");
-
-    // We want to change osrs_t which is bits 7,6,5
-    ctrlMeas = ctrlMeas & 0b00011111; // mask out the bits we care about
-    ctrlMeas = ctrlMeas | (1 << 5); // Set the magic bits // TEMP
-
-    INFO("ctrlMeas temp -> ");
-    tmp = ctrlMeas;
-    while (tmp) {
-        if (tmp & 1)
-            INFO("1");
-        else
-            INFO("0");
-        tmp >>= 1;
-    }
-    INFO("\r\n");
-
-    // We want to change osrs_p which is bits 4,3,2
-    ctrlMeas = ctrlMeas & 0b11100011; // mask out the bits we care about
-    ctrlMeas = ctrlMeas | (1 << 2); // Set the magic bits //PRES
-
-    INFO("ctrlMeas pres -> ");
-    tmp = ctrlMeas;
-    while (tmp) {
-        if (tmp & 1)
-            INFO("1");
-        else
-            INFO("0");
-        tmp >>= 1;
-    }
-    INFO("\r\n");
-
-      //writeRegister(regCtrlMeas, ctrlMeas);
-
-}
-
-void ICACHE_FLASH_ATTR bme280_temp(uint8 i2c_dev_addr)
-{
-    if(bme280_select_i2c_dev(i2c_dev_addr) == false)
+    else
     {
-        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
-        return;
+        if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF4, ctrl_meas))
+        {
+            INFO("Can't write ctrl_meas\r\n");
+            return false;
+        }
+        else
+        {
+            if(!bme280_write_byte_to_reg(i2c_dev_addr, 0xF5, ctrl_config))
+            {
+                INFO("Can't write ctrl_config\r\n");
+                return false;
+            }
+        }
     }
 
-    i2c_master_writeByte((uint8)(BME280_TEMP_MSB));
-    if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-        i2c_master_stop();
-        return;
-    }
-
-    i2c_master_start();
-
-    i2c_master_writeByte((uint8)(i2c_dev_addr << 1) | 1);
-    if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-        i2c_master_stop();
-        return;
-    }
-
-    uint8 msb = i2c_master_readByte();
-    if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-        i2c_master_stop();
-        return;
-    }
-
-    uint8 lsb = i2c_master_readByte();
-    if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-        i2c_master_stop();
-        return;
-    }
-
-    uint8 xlsb = i2c_master_readByte();
-    if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
-        i2c_master_stop();
-        return;
-    }
-
-    uint32_t temp32 = (uint32_t)xlsb | (uint32_t)msb<<4 | (uint32_t)lsb<<12;
-    INFO("TEMP 32bit: %u\r\n", temp32);
-    print_bitmask_u32(temp32);
-
-    INFO("MSB -> ");print_bitmask_u32(msb);
-    INFO("LSB -> ");print_bitmask_u32(lsb);
-    INFO("XLSB -> ");print_bitmask_u32(xlsb);
-
-    i2c_master_send_nack();
-    i2c_master_stop();
-
-
+    return true;
 }
+*/
