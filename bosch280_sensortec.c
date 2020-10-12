@@ -1,27 +1,8 @@
 #include <bosch280_sensortec.h>
-#include <driver/i2c_master.h>
+#include <i2c_master.h>
 
 #include <osapi.h>
 #include <mem.h>
-
-
-
-#define GLOBAL_DEBUG_ON
-
-
-#if defined(GLOBAL_DEBUG_ON)
-#define MQTT_DEBUG_ON
-#endif
-
-#if defined(MQTT_DEBUG_ON)
-#ifndef INFO
-#define INFO( format, ... ) os_printf( format, ## __VA_ARGS__ )
-#endif
-#else
-#ifndef INFO
-#define INFO( format, ... )
-#endif
-#endif
 
 #define BOSCH280_CHIP_ID_REG      0xD0
 #define BOSCH280_CONF_REG         0xF4
@@ -33,15 +14,11 @@
 #define BOSCH280_TEMP_XLSB 0xFC
 
 
-///FORWARD DECL. DEF is in user_main
-void ICACHE_FLASH_ATTR BITINFO(char * text, uint8 inpins);
-void ICACHE_FLASH_ATTR BITINFOu16(char * text, uint16 inpins);
-void ICACHE_FLASH_ATTR BITINFOu32(char * text, uint32 inpins);
+///FORWARD DECL. DEF is in utils/utils.c
+//void ICACHE_FLASH_ATTR BITINFO(char * text, uint8 inpins);
+//void ICACHE_FLASH_ATTR BITINFOu16(char * text, uint16 inpins);
+//void ICACHE_FLASH_ATTR BITINFOu32(char * text, uint32 inpins);
 ///
-
-
-
-
 
 struct BOSCH280_device_struct * current_selected_device = NULL;
 
@@ -157,7 +134,7 @@ uint8 ICACHE_FLASH_ATTR BOSCH280_first_i2c_dev()
         i2c_master_writeByte((uint8)(BOSCH280_I2C_ADDR2 << 1));
         if (!i2c_master_checkAck())
         {
-            INFO("%d i2c BOSCH280_find_i2c_dev. No Bosch device found.\r\n", __LINE__);
+            os_printf("%d i2c BOSCH280_find_i2c_dev. No Bosch device found.\r\n", __LINE__);
             i2c_master_stop();
             return 0;
         }
@@ -203,7 +180,7 @@ bool ICACHE_FLASH_ATTR BOSCH280_select_i2c_dev(uint8 i2c_dev_addr)
     i2c_master_start();
     i2c_master_writeByte((uint8)(i2c_dev_addr << 1));
     if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_select_i2c_dev checkAck error \r\n", __LINE__);
+        os_printf("%d i2c bme280_select_i2c_dev checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return false;
     }
@@ -218,7 +195,7 @@ bool ICACHE_FLASH_ATTR BOSCH280_readNextBytes(uint8 i2c_dev_addr, uint8 *data, u
     // write i2c address & direction
     i2c_master_writeByte((uint8)((i2c_dev_addr << 1) | 1));
     if (!i2c_master_checkAck()) {
-        INFO("i2c at24c_readNextBytes checkAck error \r\n");
+        os_printf("i2c at24c_readNextBytes checkAck error \r\n");
         i2c_master_stop();
         return false;
     }
@@ -240,20 +217,20 @@ bool ICACHE_FLASH_ATTR BOSCH280_write_byte_to_reg(uint8 i2c_dev_addr, uint8 reg,
 {
     if(BOSCH280_select_i2c_dev(i2c_dev_addr) == false)
     {
-        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
+        os_printf("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
         return false;
     }
 
     i2c_master_writeByte((uint8)(reg));
     if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
+        os_printf("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return false;
     }
 
     i2c_master_writeByte((uint8)(byte));
     if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
+        os_printf("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return false;
     }
@@ -266,13 +243,13 @@ uint8 ICACHE_FLASH_ATTR BOSCH280_read_byte_from_reg(uint8 i2c_dev_addr, uint8 re
 {
     if(BOSCH280_select_i2c_dev(i2c_dev_addr) == false)
     {
-        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
+        os_printf("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
         return 0;
     }
 
     i2c_master_writeByte((uint8)(reg));
     if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
+        os_printf("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return 0;
     }
@@ -280,7 +257,7 @@ uint8 ICACHE_FLASH_ATTR BOSCH280_read_byte_from_reg(uint8 i2c_dev_addr, uint8 re
     i2c_master_start();
     i2c_master_writeByte((uint8)(i2c_dev_addr << 1) | 1);
     if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
+        os_printf("%d i2c bme280_read_byte_from_reg checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return 0;
     }
@@ -295,14 +272,14 @@ bool ICACHE_FLASH_ATTR BOSCH280_read_bytes_from_reg(uint8 i2c_dev_addr, uint8 re
 {
     if(BOSCH280_select_i2c_dev(i2c_dev_addr) == false)
     {
-        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
+        os_printf("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
         return false;
     }
 
     i2c_master_writeByte(reg_start);
     if (!i2c_master_checkAck())
     {
-        INFO("%d i2c bme280_temp checkAck error \r\n", __LINE__);
+        os_printf("%d i2c bme280_temp checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return false;
     }
@@ -325,13 +302,13 @@ uint8 ICACHE_FLASH_ATTR BOSCH280_chip_id(uint8 i2c_dev_addr)
 {
     if(BOSCH280_select_i2c_dev(i2c_dev_addr) == false)
     {
-        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
+        os_printf("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
         return 0;
     }
 
     i2c_master_writeByte((uint8)(BOSCH280_CHIP_ID_REG));
     if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_chip_id checkAck error \r\n", __LINE__);
+        os_printf("%d i2c bme280_chip_id checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return 0;
     }
@@ -339,7 +316,7 @@ uint8 ICACHE_FLASH_ATTR BOSCH280_chip_id(uint8 i2c_dev_addr)
     i2c_master_start();
     i2c_master_writeByte((uint8)(i2c_dev_addr << 1) | 1);
     if (!i2c_master_checkAck()) {
-        INFO("%d i2c bme280_chip_id checkAck error \r\n", __LINE__);
+        os_printf("%d i2c bme280_chip_id checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return 0;
     }
@@ -354,20 +331,20 @@ bool ICACHE_FLASH_ATTR BOSCH280_soft_reset(struct BOSCH280_device_struct * dev)
 {
     if(BOSCH280_select_i2c_dev(dev->bosch280_selected_device) == false)
     {
-        INFO("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
+        os_printf("[%d] BME280 i2c device can not be selected/accessed\r\n", __LINE__);
         return false;
     }
 
     i2c_master_writeByte((uint8)(BOSCH280_SOFT_RST_REG));
     if (!i2c_master_checkAck()) {
-        INFO("[%d] i2c bme280_chip_id checkAck error \r\n", __LINE__);
+        os_printf("[%d] i2c bme280_chip_id checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return false;
     }
 
     i2c_master_writeByte((uint8)(BOSCH280_SOFT_RST_BYTE));
     if (!i2c_master_checkAck()) {
-        INFO("[%d] i2c bme280_chip_id checkAck error \r\n", __LINE__);
+        os_printf("[%d] i2c bme280_chip_id checkAck error \r\n", __LINE__);
         i2c_master_stop();
         return false;
     }
@@ -381,7 +358,7 @@ bool ICACHE_FLASH_ATTR BOSCH280_is_measuring(struct BOSCH280_device_struct * dev
     uint8 status = BOSCH280_read_byte_from_reg(dev->bosch280_selected_device, 0xF3);
     if(status & (1<<3))
     {
-        INFO("measuring...\r\n");
+        //os_printf("measuring...\r\n");
         return true;//os_delay_us(60000);
     }
     return false;
@@ -410,7 +387,7 @@ bool ICACHE_FLASH_ATTR BME280_read_calibration_data(struct BOSCH280_device_struc
     bool read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0x88, 26, &calib00);
     if(!read)
     {
-        INFO("CAN't read callibration data from 0x88..0xA1\r\n");
+        os_printf("CAN't read callibration data from 0x88..0xA1\r\n");
         return false;
     }
 
@@ -418,7 +395,7 @@ bool ICACHE_FLASH_ATTR BME280_read_calibration_data(struct BOSCH280_device_struc
     read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0xE1, 15, &calib26);
     if(!read)
     {
-        INFO("CAN't read callibration data from 0xE1..0xE6\r\n");
+        os_printf("CAN't read callibration data from 0xE1..0xE6\r\n");
         return false;
     }
 
@@ -426,10 +403,10 @@ bool ICACHE_FLASH_ATTR BME280_read_calibration_data(struct BOSCH280_device_struc
     os_memcpy((void *)dev->callibration_pres_data.data, &calib00[6], 18);
 
     dev->callibration_humm_data.H1 = calib00[25];//bme280_read_byte_from_reg(i2c_dev_addr, 0xA1);                     //A1
-    BITINFOu16("H1 -> ", dev->callibration_humm_data.H1);
-    BITINFO("calib26[0] ", calib26[0]);
-    BITINFO("calib26[1] ", calib26[1]);
-    BITINFO("calib26[2] ", calib26[2]);
+    //BITINFOu16("H1 -> ", dev->callibration_humm_data.H1);
+    //BITINFO("calib26[0] ", calib26[0]);
+    //BITINFO("calib26[1] ", calib26[1]);
+    //BITINFO("calib26[2] ", calib26[2]);
     //os_memcpy((void*)&callibration_humm_data.data[1], calib26, 2);   //E1+E2   = H2
     // [     E2          E1     ]
     // [ 0000 0000   0000 0000  ]
@@ -437,24 +414,24 @@ bool ICACHE_FLASH_ATTR BME280_read_calibration_data(struct BOSCH280_device_struc
     dev->callibration_humm_data.H2 = (uint16_t)calib26[1] << 8;
     dev->callibration_humm_data.H2 |= calib26[0];
 
-    BITINFOu16("H2 -> ", dev->callibration_humm_data.H2);
+    //BITINFOu16("H2 -> ", dev->callibration_humm_data.H2);
 
     dev->callibration_humm_data.H3 = calib26[2];                      //E3 = H3
-    BITINFOu16("H3 -> ", dev->callibration_humm_data.H3);
+    //BITINFOu16("H3 -> ", dev->callibration_humm_data.H3);
 
     dev->callibration_humm_data.H4 = (uint16_t)calib26[3] << 4;       //E4 =    H4[0000 ->0000 0000<- 0000]
     dev->callibration_humm_data.H4 |= calib26[4] & 0b00001111;        //E5[0:3] H4[0000   0000 0000 ->0000<-]
 
-    BITINFOu16("H4 -> ", dev->callibration_humm_data.H4);
+    //BITINFOu16("H4 -> ", dev->callibration_humm_data.H4);
 
     dev->callibration_humm_data.H5 = calib26[4] >> 4;                 //E5[7:4] H5[0000   0000 0000 ->0000<-]
     dev->callibration_humm_data.H5 |= (uint16_t)calib26[5] << 4;      //E6      H5[0000 ->0000 0000<- 0000]
 
-    BITINFOu16("H5 -> ", dev->callibration_humm_data.H5);
+    //BITINFOu16("H5 -> ", dev->callibration_humm_data.H5);
 
     dev->callibration_humm_data.H6 = calib26[6];                      //E7
 
-    BITINFOu16("H6 -> ", dev->callibration_humm_data.H6);
+    //BITINFOu16("H6 -> ", dev->callibration_humm_data.H6);
 
     os_free(calib00);
     os_free(calib26);
@@ -468,7 +445,7 @@ bool ICACHE_FLASH_ATTR BMP280_read_calibration_data(struct BOSCH280_device_struc
     bool read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0x88, 26, &calib00);
     if(!read)
     {
-        INFO("CAN't read callibration data from 0x88..0xA1\r\n");
+        os_printf("CAN't read callibration data from 0x88..0xA1\r\n");
         return false;
     }
 
@@ -485,7 +462,7 @@ real64_t ICACHE_FLASH_ATTR BOSCH280_read_humm_double(struct BOSCH280_device_stru
     bool read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0xFD, 2, &temp_data);
     if(!read)
     {
-        INFO("CAN't read bme280_read_temp_longint\r\n");
+        os_printf("CAN't read bme280_read_temp_longint\r\n");
         return 0;
     }
 
@@ -503,7 +480,7 @@ BOSCH280_S32_t ICACHE_FLASH_ATTR BOSCH280_read_humm_longint(struct BOSCH280_devi
     bool read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0xFD, 2, &temp_data);
     if(!read)
     {
-        INFO("CAN't read bme280_read_temp_longint\r\n");
+        os_printf("CAN't read bme280_read_temp_longint\r\n");
         return 0;
     }
 
@@ -523,7 +500,7 @@ BOSCH280_S32_t ICACHE_FLASH_ATTR BOSCH280_read_pres_longint(struct BOSCH280_devi
     bool read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0xF7, 3, &temp_data);
     if(!read)
     {
-        INFO("CAN't read bme280_read_temp_longint\r\n");
+        os_printf("CAN't read bme280_read_temp_longint\r\n");
         return 0;
     }
 
@@ -544,7 +521,7 @@ real64_t ICACHE_FLASH_ATTR BOSCH280_read_pres_double(struct BOSCH280_device_stru
     bool read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0xF7, 3, &temp_data);
     if(!read)
     {
-        INFO("CAN't read bme280_read_temp_longint\r\n");
+        os_printf("CAN't read bme280_read_temp_longint\r\n");
         return 0;
     }
 
@@ -566,7 +543,7 @@ BOSCH280_S32_t ICACHE_FLASH_ATTR BOSCH280_read_temp_longint(struct BOSCH280_devi
     bool read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0xFA, 3, &temp_data);
     if(!read)
     {
-        INFO("CAN't read bme280_read_temp_longint\r\n");
+        os_printf("CAN't read bme280_read_temp_longint\r\n");
         return 0;
     }
 
@@ -587,7 +564,7 @@ real64_t ICACHE_FLASH_ATTR BOSCH280_read_temp_double(struct BOSCH280_device_stru
     bool read = BOSCH280_read_bytes_from_reg(dev->bosch280_selected_device, 0xFA, 3, &temp_data);
     if(!read)
     {
-        INFO("CAN't read bme280_read_temp_double\r\n");
+        os_printf("CAN't read bme280_read_temp_double\r\n");
         return 0.0;
     }
 
@@ -604,12 +581,12 @@ real64_t ICACHE_FLASH_ATTR BOSCH280_read_temp_double(struct BOSCH280_device_stru
 bool ICACHE_FLASH_ATTR BOSCH280_set_mode(struct BOSCH280_device_struct * dev, uint8 mode)
 {
     uint8 cur = BOSCH280_read_byte_from_reg(dev->bosch280_selected_device, 0xF4);
-    BITINFO("CURMEAS", cur);
+    //BITINFO("CURMEAS", cur);
 
     cur = cur & 0b11111100; // mask out the bits we care about
     cur = cur | mode; // Set the magic bits
 
-    BITINFO("NEWMEAS", cur);
+    //BITINFO("NEWMEAS", cur);
 
     BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF4, cur);
 }
@@ -630,21 +607,21 @@ bool ICACHE_FLASH_ATTR BOSCH280_set_indoor_navigation_config(struct BOSCH280_dev
     {
         if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF2, ctrl_hum))
         {
-            INFO("Can't write ctrl_hum\r\n");
+            os_printf("Can't write ctrl_hum\r\n");
             return false;
         }
     }
 
     if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF5, ctrl_config))
     {
-        INFO("Can't write ctrl_config\r\n");
+        os_printf("Can't write ctrl_config\r\n");
         return false;
     }
     else
     {
         if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF4, ctrl_meas))
         {
-            INFO("Can't write ctrl_meas\r\n");
+            os_printf("Can't write ctrl_meas\r\n");
             return false;
         }
     }
@@ -668,21 +645,21 @@ bool ICACHE_FLASH_ATTR BOSCH280_set_weather_station_config(struct BOSCH280_devic
     {
         if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF2, ctrl_hum))
         {
-            INFO("Can't write ctrl_hum\r\n");
+            os_printf("Can't write ctrl_hum\r\n");
             return false;
         }
     }
 
     if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF5, ctrl_config))
     {
-        INFO("Can't write ctrl_config\r\n");
+        os_printf("Can't write ctrl_config\r\n");
         return false;
     }
     else
     {
         if(!BOSCH280_write_byte_to_reg(dev->bosch280_selected_device, 0xF4, ctrl_meas))
         {
-            INFO("Can't write ctrl_meas\r\n");
+            os_printf("Can't write ctrl_meas\r\n");
             return false;
         }
     }
